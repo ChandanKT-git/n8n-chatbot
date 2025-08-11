@@ -65,16 +65,17 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- Chats table policies
 CREATE POLICY "Users can view own chats" ON public.chats
-    FOR SELECT USING ((select auth.user_id()) = user_id);
+    FOR SELECT USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
 
 CREATE POLICY "Users can insert own chats" ON public.chats
-    FOR INSERT WITH CHECK ((select auth.user_id()) = user_id);
+    FOR INSERT WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
 
 CREATE POLICY "Users can update own chats" ON public.chats
-    FOR UPDATE USING ((select auth.user_id()) = user_id) WITH CHECK ((select auth.user_id()) = user_id);
+    FOR UPDATE USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid) 
+    WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
 
 CREATE POLICY "Users can delete own chats" ON public.chats
-    FOR DELETE USING ((select auth.user_id()) = user_id);
+    FOR DELETE USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid);
 
 -- Messages table policies
 CREATE POLICY "Users can view messages from own chats" ON public.messages
@@ -82,7 +83,7 @@ CREATE POLICY "Users can view messages from own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = (select auth.user_id())
+            AND chats.user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid
         )
     );
 
@@ -91,7 +92,7 @@ CREATE POLICY "Users can insert messages to own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = (select auth.user_id())
+            AND chats.user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid
         )
     );
 
@@ -100,13 +101,13 @@ CREATE POLICY "Users can update messages in own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = (select auth.user_id())
+            AND chats.user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid
         )
     ) WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = (select auth.user_id())
+            AND chats.user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid
         )
     );
 
@@ -115,7 +116,7 @@ CREATE POLICY "Users can delete messages from own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = (select auth.user_id())
+            AND chats.user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::uuid
         )
     );
 
