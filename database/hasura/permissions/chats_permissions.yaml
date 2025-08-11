@@ -1,0 +1,55 @@
+# Hasura GraphQL Permissions for chats table
+# This file defines the permissions for the 'user' role on the chats table
+
+table:
+  name: chats
+  schema: public
+
+# SELECT permissions
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - user_id
+        - title
+        - created_at
+        - updated_at
+      filter:
+        user_id:
+          _eq: X-Hasura-User-Id
+      allow_aggregations: true
+
+# INSERT permissions
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        user_id:
+          _eq: X-Hasura-User-Id
+      columns:
+        - user_id
+        - title
+      set:
+        user_id: X-Hasura-User-Id
+
+# UPDATE permissions
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - title
+      filter:
+        user_id:
+          _eq: X-Hasura-User-Id
+      check:
+        user_id:
+          _eq: X-Hasura-User-Id
+
+# DELETE permissions
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        user_id:
+          _eq: X-Hasura-User-Id

@@ -1,0 +1,65 @@
+# Hasura GraphQL Permissions for messages table
+# This file defines the permissions for the 'user' role on the messages table
+
+table:
+  name: messages
+  schema: public
+
+# SELECT permissions
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - chat_id
+        - content
+        - is_bot
+        - created_at
+      filter:
+        chat:
+          user_id:
+            _eq: X-Hasura-User-Id
+      allow_aggregations: true
+
+# INSERT permissions
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        chat:
+          user_id:
+            _eq: X-Hasura-User-Id
+      columns:
+        - chat_id
+        - content
+        - is_bot
+
+# UPDATE permissions (optional - for message editing)
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - content
+      filter:
+        _and:
+          - chat:
+              user_id:
+                _eq: X-Hasura-User-Id
+          - is_bot:
+              _eq: false  # Only allow editing user messages, not bot messages
+      check:
+        chat:
+          user_id:
+            _eq: X-Hasura-User-Id
+
+# DELETE permissions (optional - for message deletion)
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        _and:
+          - chat:
+              user_id:
+                _eq: X-Hasura-User-Id
+          - is_bot:
+              _eq: false  # Only allow deleting user messages, not bot messages
