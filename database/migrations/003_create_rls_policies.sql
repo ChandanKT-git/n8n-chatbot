@@ -18,23 +18,23 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 -- Policy: Users can view their own chats
 CREATE POLICY "Users can view own chats" ON public.chats
     FOR SELECT 
-    USING (auth.uid() = user_id);
+    USING ((select auth.user_id()) = user_id);
 
 -- Policy: Users can insert their own chats
 CREATE POLICY "Users can insert own chats" ON public.chats
     FOR INSERT 
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK ((select auth.user_id()) = user_id);
 
 -- Policy: Users can update their own chats
 CREATE POLICY "Users can update own chats" ON public.chats
     FOR UPDATE 
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
+    USING ((select auth.user_id()) = user_id)
+    WITH CHECK ((select auth.user_id()) = user_id);
 
 -- Policy: Users can delete their own chats
 CREATE POLICY "Users can delete own chats" ON public.chats
     FOR DELETE 
-    USING (auth.uid() = user_id);
+    USING ((select auth.user_id()) = user_id);
 
 -- =============================================
 -- MESSAGES TABLE POLICIES
@@ -47,7 +47,7 @@ CREATE POLICY "Users can view messages from own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = auth.uid()
+            AND chats.user_id = (select auth.user_id())
         )
     );
 
@@ -58,7 +58,7 @@ CREATE POLICY "Users can insert messages to own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = auth.uid()
+            AND chats.user_id = (select auth.user_id())
         )
     );
 
@@ -69,14 +69,14 @@ CREATE POLICY "Users can update messages in own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = auth.uid()
+            AND chats.user_id = (select auth.user_id())
         )
     )
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = auth.uid()
+            AND chats.user_id = (select auth.user_id())
         )
     );
 
@@ -87,7 +87,7 @@ CREATE POLICY "Users can delete messages from own chats" ON public.messages
         EXISTS (
             SELECT 1 FROM public.chats 
             WHERE chats.id = messages.chat_id 
-            AND chats.user_id = auth.uid()
+            AND chats.user_id = (select auth.user_id())
         )
     );
 
