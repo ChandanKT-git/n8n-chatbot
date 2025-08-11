@@ -98,12 +98,6 @@ CREATE POLICY "Users can delete messages from own chats" ON public.messages
 -- Ensure only authenticated users can access these tables
 -- (This is handled by the policies above, but we can add explicit checks)
 
--- Grant usage on schema to authenticated users
-GRANT USAGE ON SCHEMA public TO authenticated;
-
--- Grant table permissions to authenticated users
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.chats TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.messages TO authenticated;
-
--- Grant sequence permissions (for any sequences that might be created)
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+-- Note: Permissions are handled by Hasura GraphQL Engine
+-- Hasura manages database permissions through its own role system
+-- No need to grant PostgreSQL permissions directly

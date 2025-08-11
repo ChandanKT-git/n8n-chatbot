@@ -120,11 +120,8 @@ CREATE POLICY "Users can delete messages from own chats" ON public.messages
         )
     );
 
--- Grant permissions to authenticated users
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.chats TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.messages TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+-- Note: Permissions are handled by Hasura GraphQL Engine
+-- No need to grant permissions to roles as Hasura manages this
 
 -- =============================================
 -- SAMPLE DATA (Optional - for development)
