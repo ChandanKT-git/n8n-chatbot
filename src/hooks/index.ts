@@ -1,22 +1,28 @@
-// Authentication hooks
-export { useAuthentication } from './useAuthentication'
-export { useAuthOperations } from './useAuthOperations'
-export { useFormValidation, authValidationRules } from './useFormValidation'
-export { useNavigation } from './useNavigation'
+// ============================================================================
+// HOOKS EXPORTS
+// ============================================================================
 
-// GraphQL hooks
-export { useChats, useChatsSubscription } from './useChats'
-export { useMessages, useMessagesSubscription } from './useMessages'
-export { useChatOperations } from './useChatOperations'
+// Chat hooks
+export {
+    useChats,
+    useChat,
+    type UseChatsResult
+} from './useChats';
 
-// Real-time hooks
-export { useRealTimeChats, useRealTimeChatUpdates } from './useRealTimeChats'
-export { useRealTimeMessages, useMessageNotifications, useAutoScroll } from './useRealTimeMessages'
-export { useConnectionStatus, useReconnectStrategy } from './useConnectionStatus'
+// Message hooks
+export {
+    useMessages,
+    useLatestMessage,
+    useMessageCount,
+    type UseMessagesResult
+} from './useMessages';
 
-// Cache management hooks
-export { useCacheManager } from './useCacheManager'
-export { useOptimisticUpdates, useOptimisticMessageSending } from './useOptimisticUpdates'
-
-// Context hooks
-export { useAuth } from '../contexts/AuthContext'
+// Re-export subscription utilities
+export {
+    useSubscriptionCleanup,
+    handleSubscriptionError,
+    getSubscriptionState,
+    SubscriptionState,
+    SUBSCRIPTION_RETRY_CONFIG,
+    calculateRetryDelay
+} from '../lib/subscriptions';

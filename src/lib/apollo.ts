@@ -4,7 +4,7 @@ import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { getMainDefinition } from '@apollo/client/utilities'
 import { createClient } from 'graphql-ws'
 import { nhost } from './nhost'
-import { createApolloCache, CacheManager } from './apolloCache'
+import { createApolloCache, cacheHelpers } from './cache'
 
 // HTTP link for queries and mutations
 const httpLink = createHttpLink({
@@ -72,5 +72,5 @@ export const apolloClient = new ApolloClient({
     },
 })
 
-// Export cache manager for direct cache operations
-export const cacheManager = new CacheManager(cache)
+// Export cache helpers for direct cache operations
+export { cacheHelpers }

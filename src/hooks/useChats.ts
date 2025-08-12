@@ -1,170 +1,196 @@
-import { useQuery, useMutation, useSubscription } from '@apollo/client'
+import { useState, useCallback, useEffect } from 'react';
+import {
+    useQuery,
+    useMutation,
+    useSubscription,
+    ApolloError,
+    FetchResult
+} from '@apollo/client';
 import {
     GET_USER_CHATS,
     CREATE_CHAT,
-    UPDATE_CHAT,
-    DELETE_CHAT,
+    UPDATE_CHAT_TITLE,
+    UPDATE_CHAT_TIMESTAMP,
     SUBSCRIBE_TO_USER_CHATS
-} from '../graphql/schema'
+} from '../lib/graphql';
 import {
-    GetUserChatsQuery,
-    CreateChatMutation,
-    CreateChatMutationVariables,
-    UpdateChatMutation,
-    UpdateChatMutationVariables,
-    DeleteChatMutation,
-    DeleteChatMutationVariables,
-    SubscribeToUserChatsSubscription
-} from '../graphql/types'
-import { generateChatTitle } from '../utils'
+    GetUserChatsResponse,
+    CreateChatResponse,
+    CreateChatVariables,
+    UpdateChatTitleResponse,
+    UpdateChatTitleVariables,
+    UpdateChatTimestampResponse,
+    UpdateChatTimestampVariables,
+    SubscribeToUserChatsResponse,
+    ChatWithPreview
+} from '../types/graphql';
+import { handleSubscriptionError, getSubscriptionState, SubscriptionState } from '../lib/subscriptions';
 
-export function useChats() {
-    // Query for user's chats
+// ============================================================================
+// CHAT HOOKS
+// ============================================================================
+
+export interface UseChatsResult {
+    // Data
+    chats: ChatWithPreview[];
+    loading: boolean;
+    error: ApolloError | undefined;
+    subscriptionState: SubscriptionState;
+
+    // Actions
+    createChat: (title: string) => Promise<string | null>;
+    updateChatTitle: (chatId: string, title: string) => Promise<boolean>;
+    updateChatTimestamp: (chatId: string) => Promise<boolean>;
+    refetch: () => Promise<any>;
+
+    // States
+    creating: boolean;
+    updating: boolean;
+}
+
+/**
+ * Hook for managing user's chats with real-time updates
+ */
+export function useChats(): UseChatsResult {
+    const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+
+    // Query for initial data
     const {
-        data,
-        loading,
-        error,
+        data: queryData,
+        loading: queryLoading,
+        error: queryError,
         refetch
-    } = useQuery<GetUserChatsQuery>(GET_USER_CHATS, {
+    } = useQuery<GetUserChatsResponse>(GET_USER_CHATS, {
         errorPolicy: 'all',
         notifyOnNetworkStatusChange: true,
-    })
+    });
 
-    // Create chat mutation
-    const [createChatMutation, { loading: creating }] = useMutation<
-        CreateChatMutation,
-        CreateChatMutationVariables
-    >(CREATE_CHAT, {
-        update(cache, { data }) {
-            if (data?.insert_chats_one) {
-                // Add the new chat to the cache
-                const existingChats = cache.readQuery<GetUserChatsQuery>({
-                    query: GET_USER_CHATS,
-                })
+    // Subscription for real-time updates
+    const {
+        data: subscriptionData,
+        loading: subscriptionLoading,
+        error: subscriptionError
+    } = useSubscription<SubscribeToUserChatsResponse>(SUBSCRIBE_TO_USER_CHATS, {
+        errorPolicy: 'all',
+    });
 
-                if (existingChats) {
-                    cache.writeQuery({
+    // Mutations
+    const [createChatMutation] = useMutation<CreateChatResponse, CreateChatVariables>(
+        CREATE_CHAT,
+        {
+            update: (cache, { data }) => {
+                if (data?.insert_chats_one) {
+                    // Add new chat to cache
+                    const existingChats = cache.readQuery<GetUserChatsResponse>({
                         query: GET_USER_CHATS,
-                        data: {
-                            chats: [
-                                {
-                                    ...data.insert_chats_one,
-                                    messages: [],
-                                    messages_aggregate: { aggregate: { count: 0 } }
-                                },
-                                ...existingChats.chats,
-                            ],
-                        },
-                    })
+                    });
+
+                    if (existingChats) {
+                        cache.writeQuery({
+                            query: GET_USER_CHATS,
+                            data: {
+                                chats: [
+                                    {
+                                        ...data.insert_chats_one,
+                                        messages_aggregate: { aggregate: { count: 0 } },
+                                        messages: []
+                                    },
+                                    ...existingChats.chats,
+                                ],
+                            },
+                        });
+                    }
                 }
-            }
-        },
-    })
+            },
+        }
+    );
 
-    // Update chat mutation
-    const [updateChatMutation, { loading: updating }] = useMutation<
-        UpdateChatMutation,
-        UpdateChatMutationVariables
-    >(UPDATE_CHAT)
+    const [updateChatTitleMutation] = useMutation<UpdateChatTitleResponse, UpdateChatTitleVariables>(
+        UPDATE_CHAT_TITLE
+    );
 
-    // Delete chat mutation
-    const [deleteChatMutation, { loading: deleting }] = useMutation<
-        DeleteChatMutation,
-        DeleteChatMutationVariables
-    >(DELETE_CHAT, {
-        update(cache, { data }, { variables }) {
-            if (data?.delete_chats_by_pk && variables?.chatId) {
-                // Remove the chat from the cache
-                const existingChats = cache.readQuery<GetUserChatsQuery>({
-                    query: GET_USER_CHATS,
-                })
+    const [updateChatTimestampMutation] = useMutation<UpdateChatTimestampResponse, UpdateChatTimestampVariables>(
+        UPDATE_CHAT_TIMESTAMP
+    );
 
-                if (existingChats) {
-                    cache.writeQuery({
-                        query: GET_USER_CHATS,
-                        data: {
-                            chats: existingChats.chats.filter(
-                                chat => chat.id !== variables.chatId
-                            ),
-                        },
-                    })
-                }
-            }
-        },
-    })
+    // Determine which data to use (subscription takes precedence)
+    const chats = subscriptionData?.chats || queryData?.chats || [];
+    const loading = queryLoading && !subscriptionData;
+    const error = subscriptionError || queryError;
+    const subscriptionState = getSubscriptionState(subscriptionLoading, subscriptionError, subscriptionData);
 
-    // Helper functions
-    const createChat = async (title?: string) => {
+    // Actions
+    const createChat = useCallback(async (title: string): Promise<string | null> => {
+        setCreating(true);
         try {
-            const result = await createChatMutation({
+            const result: FetchResult<CreateChatResponse> = await createChatMutation({
                 variables: { title },
-            })
-            return { success: true, chat: result.data?.insert_chats_one }
-        } catch (error) {
-            console.error('Error creating chat:', error)
-            return { success: false, error }
-        }
-    }
+            });
 
-    const updateChat = async (chatId: string, title: string) => {
+            if (result.data?.insert_chats_one) {
+                return result.data.insert_chats_one.id;
+            }
+            return null;
+        } catch (error) {
+            console.error('Failed to create chat:', error);
+            return null;
+        } finally {
+            setCreating(false);
+        }
+    }, [createChatMutation]);
+
+    const updateChatTitle = useCallback(async (chatId: string, title: string): Promise<boolean> => {
+        setUpdating(true);
         try {
-            const result = await updateChatMutation({
+            const result = await updateChatTitleMutation({
                 variables: { chatId, title },
-            })
-            return { success: true, chat: result.data?.update_chats_by_pk }
+            });
+            return !!result.data?.update_chats_by_pk;
         } catch (error) {
-            console.error('Error updating chat:', error)
-            return { success: false, error }
+            console.error('Failed to update chat title:', error);
+            return false;
+        } finally {
+            setUpdating(false);
         }
-    }
+    }, [updateChatTitleMutation]);
 
-    const deleteChat = async (chatId: string) => {
+    const updateChatTimestamp = useCallback(async (chatId: string): Promise<boolean> => {
         try {
-            const result = await deleteChatMutation({
+            const result = await updateChatTimestampMutation({
                 variables: { chatId },
-            })
-            return { success: true, deleted: !!result.data?.delete_chats_by_pk }
+            });
+            return !!result.data?.update_chats_by_pk;
         } catch (error) {
-            console.error('Error deleting chat:', error)
-            return { success: false, error }
+            console.error('Failed to update chat timestamp:', error);
+            return false;
         }
-    }
-
-    const createChatWithFirstMessage = async (firstMessage: string) => {
-        const title = generateChatTitle(firstMessage)
-        return createChat(title)
-    }
+    }, [updateChatTimestampMutation]);
 
     return {
         // Data
-        chats: data?.chats || [],
-
-        // Loading states
+        chats,
         loading,
-        creating,
-        updating,
-        deleting,
-
-        // Error
         error,
+        subscriptionState,
 
         // Actions
         createChat,
-        updateChat,
-        deleteChat,
-        createChatWithFirstMessage,
+        updateChatTitle,
+        updateChatTimestamp,
         refetch,
-    }
+
+        // States
+        creating,
+        updating,
+    };
 }
 
-export function useChatsSubscription() {
-    const { data, loading, error } = useSubscription<SubscribeToUserChatsSubscription>(
-        SUBSCRIBE_TO_USER_CHATS
-    )
+/**
+ * Hook for getting a specific chat by ID
+ */
+export function useChat(chatId: string | null): ChatWithPreview | null {
+    const { chats } = useChats();
 
-    return {
-        chats: data?.chats || [],
-        loading,
-        error,
-    }
+    return chats.find(chat => chat.id === chatId) || null;
 }

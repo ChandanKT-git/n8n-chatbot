@@ -1,216 +1,228 @@
-import { useQuery, useMutation, useSubscription } from '@apollo/client'
+import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+    useQuery,
+    useMutation,
+    useSubscription,
+    ApolloError,
+    FetchResult
+} from '@apollo/client';
 import {
     GET_CHAT_MESSAGES,
     SEND_MESSAGE,
-    UPDATE_MESSAGE,
-    DELETE_MESSAGE,
     SUBSCRIBE_TO_CHAT_MESSAGES,
-    GET_USER_CHATS
-} from '../graphql/schema'
+    UPDATE_CHAT_TIMESTAMP
+} from '../lib/graphql';
 import {
-    GetChatMessagesQuery,
-    GetChatMessagesQueryVariables,
-    SendMessageMutation,
-    SendMessageMutationVariables,
-    UpdateMessageMutation,
-    UpdateMessageMutationVariables,
-    DeleteMessageMutation,
-    DeleteMessageMutationVariables,
-    SubscribeToChatMessagesSubscription,
-    SubscribeToChatMessagesSubscriptionVariables,
-    GetUserChatsQuery
-} from '../graphql/types'
+    GetChatMessagesResponse,
+    GetChatMessagesVariables,
+    SendMessageResponse,
+    SendMessageVariables,
+    SubscribeToChatMessagesResponse,
+    SubscribeToChatMessagesVariables,
+    UpdateChatTimestampVariables,
+    Message
+} from '../types/graphql';
+import { getSubscriptionState, SubscriptionState } from '../lib/subscriptions';
 
-export function useMessages(chatId: string) {
-    // Query for chat messages
+// ============================================================================
+// MESSAGE HOOKS
+// ============================================================================
+
+export interface UseMessagesResult {
+    // Data
+    messages: Message[];
+    loading: boolean;
+    error: ApolloError | undefined;
+    subscriptionState: SubscriptionState;
+
+    // Actions
+    sendMessage: (content: string, isBot?: boolean) => Promise<boolean>;
+    sendMessageOptimistic: (content: string, isBot?: boolean) => string;
+    refetch: () => Promise<any>;
+
+    // States
+    sending: boolean;
+}
+
+/**
+ * Hook for managing messages in a specific chat with real-time updates
+ */
+export function useMessages(chatId: string | null): UseMessagesResult {
+    const [sending, setSending] = useState(false);
+    const optimisticMessagesRef = useRef<Map<string, Message>>(new Map());
+
+    // Query for initial data
     const {
-        data,
-        loading,
-        error,
+        data: queryData,
+        loading: queryLoading,
+        error: queryError,
         refetch
-    } = useQuery<GetChatMessagesQuery, GetChatMessagesQueryVariables>(
+    } = useQuery<GetChatMessagesResponse, GetChatMessagesVariables>(
         GET_CHAT_MESSAGES,
         {
-            variables: { chatId },
+            variables: { chatId: chatId! },
             skip: !chatId,
             errorPolicy: 'all',
             notifyOnNetworkStatusChange: true,
         }
-    )
+    );
 
-    // Send message mutation
-    const [sendMessageMutation, { loading: sending }] = useMutation<
-        SendMessageMutation,
-        SendMessageMutationVariables
-    >(SEND_MESSAGE, {
-        update(cache, { data }, { variables }) {
-            if (data?.insert_messages_one && variables?.chatId) {
-                // Add the new message to the cache
-                const existingMessages = cache.readQuery<
-                    GetChatMessagesQuery,
-                    GetChatMessagesQueryVariables
-                >({
-                    query: GET_CHAT_MESSAGES,
-                    variables: { chatId: variables.chatId },
-                })
+    // Subscription for real-time updates
+    const {
+        data: subscriptionData,
+        loading: subscriptionLoading,
+        error: subscriptionError
+    } = useSubscription<SubscribeToChatMessagesResponse, SubscribeToChatMessagesVariables>(
+        SUBSCRIBE_TO_CHAT_MESSAGES,
+        {
+            variables: { chatId: chatId! },
+            skip: !chatId,
+            errorPolicy: 'all',
+        }
+    );
 
-                if (existingMessages) {
-                    cache.writeQuery({
-                        query: GET_CHAT_MESSAGES,
-                        variables: { chatId: variables.chatId },
-                        data: {
-                            messages: [...existingMessages.messages, data.insert_messages_one],
-                        },
-                    })
-                }
+    // Mutations
+    const [sendMessageMutation] = useMutation<SendMessageResponse, SendMessageVariables>(
+        SEND_MESSAGE,
+        {
+            update: (cache, { data }) => {
+                if (data?.insert_messages_one && chatId) {
+                    // Remove optimistic message and add real message
+                    const optimisticId = `optimistic-${data.insert_messages_one.content}-${data.insert_messages_one.created_at}`;
+                    optimisticMessagesRef.current.delete(optimisticId);
 
-                // Update the chat's updated_at timestamp in the chats list
-                const existingChats = cache.readQuery<GetUserChatsQuery>({
-                    query: GET_USER_CHATS,
-                })
-
-                if (existingChats) {
-                    const updatedChats = existingChats.chats.map(chat => {
-                        if (chat.id === variables.chatId) {
-                            return {
-                                ...chat,
-                                updated_at: data.insert_messages_one.created_at,
-                                messages: [data.insert_messages_one],
-                                messages_aggregate: {
-                                    aggregate: {
-                                        count: chat.messages_aggregate.aggregate.count + 1
-                                    }
-                                }
-                            }
-                        }
-                        return chat
-                    })
-
-                    // Sort chats by updated_at
-                    updatedChats.sort((a, b) =>
-                        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-                    )
-
-                    cache.writeQuery({
-                        query: GET_USER_CHATS,
-                        data: { chats: updatedChats },
-                    })
-                }
-            }
-        },
-    })
-
-    // Update message mutation
-    const [updateMessageMutation, { loading: updating }] = useMutation<
-        UpdateMessageMutation,
-        UpdateMessageMutationVariables
-    >(UPDATE_MESSAGE)
-
-    // Delete message mutation
-    const [deleteMessageMutation, { loading: deleting }] = useMutation<
-        DeleteMessageMutation,
-        DeleteMessageMutationVariables
-    >(DELETE_MESSAGE, {
-        update(cache, { data }, { variables }) {
-            if (data?.delete_messages_by_pk && variables?.messageId) {
-                // Remove the message from the cache
-                const existingMessages = cache.readQuery<
-                    GetChatMessagesQuery,
-                    GetChatMessagesQueryVariables
-                >({
-                    query: GET_CHAT_MESSAGES,
-                    variables: { chatId },
-                })
-
-                if (existingMessages) {
-                    cache.writeQuery({
+                    // Update cache with real message
+                    const existingMessages = cache.readQuery<GetChatMessagesResponse, GetChatMessagesVariables>({
                         query: GET_CHAT_MESSAGES,
                         variables: { chatId },
-                        data: {
-                            messages: existingMessages.messages.filter(
-                                message => message.id !== variables.messageId
-                            ),
-                        },
-                    })
+                    });
+
+                    if (existingMessages) {
+                        cache.writeQuery({
+                            query: GET_CHAT_MESSAGES,
+                            variables: { chatId },
+                            data: {
+                                messages: [...existingMessages.messages, data.insert_messages_one],
+                            },
+                        });
+                    }
                 }
-            }
-        },
-    })
-
-    // Helper functions
-    const sendMessage = async (content: string, isBot: boolean = false) => {
-        if (!chatId) {
-            return { success: false, error: 'No chat ID provided' }
+            },
         }
+    );
 
+    const [updateChatTimestampMutation] = useMutation<any, UpdateChatTimestampVariables>(
+        UPDATE_CHAT_TIMESTAMP
+    );
+
+    // Determine which data to use (subscription takes precedence)
+    const baseMessages = subscriptionData?.messages || queryData?.messages || [];
+    const optimisticMessages = Array.from(optimisticMessagesRef.current.values());
+    const messages = [...baseMessages, ...optimisticMessages].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    const loading = queryLoading && !subscriptionData && !chatId;
+    const error = subscriptionError || queryError;
+    const subscriptionState = getSubscriptionState(subscriptionLoading, subscriptionError, subscriptionData);
+
+    // Clean up optimistic messages when real messages arrive
+    useEffect(() => {
+        if (subscriptionData?.messages) {
+            // Clear optimistic messages that match real messages
+            const realMessageContents = new Set(subscriptionData.messages.map(m => m.content));
+            const optimisticEntries = Array.from(optimisticMessagesRef.current.entries());
+
+            optimisticEntries.forEach(([id, message]) => {
+                if (realMessageContents.has(message.content)) {
+                    optimisticMessagesRef.current.delete(id);
+                }
+            });
+        }
+    }, [subscriptionData]);
+
+    // Actions
+    const sendMessage = useCallback(async (content: string, isBot: boolean = false): Promise<boolean> => {
+        if (!chatId) return false;
+
+        setSending(true);
         try {
-            const result = await sendMessageMutation({
+            const result: FetchResult<SendMessageResponse> = await sendMessageMutation({
                 variables: { chatId, content, isBot },
-            })
-            return { success: true, message: result.data?.insert_messages_one }
-        } catch (error) {
-            console.error('Error sending message:', error)
-            return { success: false, error }
-        }
-    }
+            });
 
-    const updateMessage = async (messageId: string, content: string) => {
-        try {
-            const result = await updateMessageMutation({
-                variables: { messageId, content },
-            })
-            return { success: true, message: result.data?.update_messages_by_pk }
+            if (result.data?.insert_messages_one) {
+                // Update chat timestamp
+                await updateChatTimestampMutation({
+                    variables: { chatId },
+                });
+                return true;
+            }
+            return false;
         } catch (error) {
-            console.error('Error updating message:', error)
-            return { success: false, error }
+            console.error('Failed to send message:', error);
+            return false;
+        } finally {
+            setSending(false);
         }
-    }
+    }, [chatId, sendMessageMutation, updateChatTimestampMutation]);
 
-    const deleteMessage = async (messageId: string) => {
-        try {
-            const result = await deleteMessageMutation({
-                variables: { messageId },
-            })
-            return { success: true, deleted: !!result.data?.delete_messages_by_pk }
-        } catch (error) {
-            console.error('Error deleting message:', error)
-            return { success: false, error }
-        }
-    }
+    const sendMessageOptimistic = useCallback((content: string, isBot: boolean = false): string => {
+        if (!chatId) return '';
+
+        const optimisticId = `optimistic-${content}-${Date.now()}`;
+        const optimisticMessage: Message = {
+            id: optimisticId,
+            chat_id: chatId,
+            content,
+            is_bot: isBot,
+            created_at: new Date().toISOString(),
+        };
+
+        optimisticMessagesRef.current.set(optimisticId, optimisticMessage);
+
+        // Trigger re-render by calling sendMessage in background
+        sendMessage(content, isBot).then(success => {
+            if (!success) {
+                // Remove optimistic message if send failed
+                optimisticMessagesRef.current.delete(optimisticId);
+            }
+        });
+
+        return optimisticId;
+    }, [chatId, sendMessage]);
 
     return {
         // Data
-        messages: data?.messages || [],
-
-        // Loading states
+        messages,
         loading,
-        sending,
-        updating,
-        deleting,
-
-        // Error
         error,
+        subscriptionState,
 
         // Actions
         sendMessage,
-        updateMessage,
-        deleteMessage,
+        sendMessageOptimistic,
         refetch,
-    }
+
+        // States
+        sending,
+    };
 }
 
-export function useMessagesSubscription(chatId: string) {
-    const { data, loading, error } = useSubscription<
-        SubscribeToChatMessagesSubscription,
-        SubscribeToChatMessagesSubscriptionVariables
-    >(SUBSCRIBE_TO_CHAT_MESSAGES, {
-        variables: { chatId },
-        skip: !chatId,
-    })
+/**
+ * Hook for getting the latest message in a chat
+ */
+export function useLatestMessage(chatId: string | null): Message | null {
+    const { messages } = useMessages(chatId);
 
-    return {
-        messages: data?.messages || [],
-        loading,
-        error,
-    }
+    return messages.length > 0 ? messages[messages.length - 1] : null;
+}
+
+/**
+ * Hook for getting message count in a chat
+ */
+export function useMessageCount(chatId: string | null): number {
+    const { messages } = useMessages(chatId);
+
+    return messages.length;
 }

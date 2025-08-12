@@ -2,64 +2,89 @@
 
 /**
  * Environment Setup Script
- * This script helps set up environment variables for deployment
+ * Helps set up environment variables for local development
  */
 
-import fs from 'fs'
-import path from 'path'
-import readline from 'readline'
+import { writeFileSync, existsSync } from 'fs';
+import { createInterface } from 'readline';
 
-const rl = readline.createInterface({
+const rl = createInterface({
     input: process.stdin,
     output: process.stdout
-})
+});
 
-function question(query) {
-    return new Promise(resolve => rl.question(query, resolve))
+function question(prompt) {
+    return new Promise((resolve) => {
+        rl.question(prompt, resolve);
+    });
 }
 
 async function setupEnvironment() {
-    console.log('🚀 Chatbot App Environment Setup\n')
+    console.log('🚀 Nhost Chatbot App - Environment Setup\n');
 
-    console.log('Please provide your Nhost project details:')
+    if (existsSync('.env.local')) {
+        const overwrite = await question('⚠️  .env.local already exists. Overwrite? (y/N): ');
+        if (overwrite.toLowerCase() !== 'y') {
+            console.log('Setup cancelled.');
+            rl.close();
+            return;
+        }
+    }
 
-    const subdomain = await question('Nhost Subdomain: ')
-    const region = await question('Nhost Region (e.g., us-east-1): ')
+    console.log('Please provide your Nhost project details:\n');
 
-    const graphqlUrl = `https://${subdomain}.hasura.${region}.nhost.run/v1/graphql`
+    const subdomain = await question('📝 Nhost Subdomain (e.g., abc123def): ');
+    const region = await question('🌍 Nhost Region (e.g., eu-central-1): ');
 
-    console.log(`\nGenerated GraphQL URL: ${graphqlUrl}`)
-    const confirmUrl = await question('Is this correct? (y/n): ')
+    if (!subdomain || !region) {
+        console.log('❌ Subdomain and region are required!');
+        rl.close();
+        return;
+    }
 
-    let finalGraphqlUrl = graphqlUrl
-    if (confirmUrl.toLowerCase() !== 'y') {
-        finalGraphqlUrl = await question('Enter the correct GraphQL URL: ')
+    const graphqlUrl = `https://${subdomain}.hasura.${region}.nhost.run/v1/graphql`;
+
+    console.log('\n📋 Generated configuration:');
+    console.log(`   Subdomain: ${subdomain}`);
+    console.log(`   Region: ${region}`);
+    console.log(`   GraphQL URL: ${graphqlUrl}\n`);
+
+    const confirm = await question('✅ Create .env.local with these settings? (Y/n): ');
+
+    if (confirm.toLowerCase() === 'n') {
+        console.log('Setup cancelled.');
+        rl.close();
+        return;
     }
 
     const envContent = `# Nhost Configuration
 VITE_NHOST_SUBDOMAIN=${subdomain}
 VITE_NHOST_REGION=${region}
 
-# Hasura Configuration
-VITE_HASURA_GRAPHQL_URL=${finalGraphqlUrl}
+# Hasura GraphQL Endpoint
+VITE_HASURA_GRAPHQL_URL=${graphqlUrl}
 
-# Application Configuration
+# App Configuration
 VITE_APP_NAME=Chatbot App
 VITE_APP_VERSION=1.0.0
 
-# n8n Configuration (will be set up later)
-# VITE_N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/chatbot-webhook
-`
+# Development
+NODE_ENV=development
+`;
 
-    fs.writeFileSync('.env', envContent)
-    console.log('\n✅ Environment file created successfully!')
-    console.log('\nNext steps:')
-    console.log('1. Set up your database using: database/migrations/init_database.sql')
-    console.log('2. Configure Hasura permissions using: database/hasura/HASURA_SETUP.md')
-    console.log('3. Deploy to Netlify using the environment variables above')
-    console.log('\nFor detailed instructions, see DEPLOYMENT.md')
+    try {
+        writeFileSync('.env.local', envContent);
+        console.log('✅ .env.local created successfully!');
+        console.log('\n🎯 Next steps:');
+        console.log('   1. Run: npm run dev');
+        console.log('   2. Open: http://localhost:5173');
+        console.log('   3. Test authentication and chat functionality');
+        console.log('\n📚 For deployment, see DEPLOYMENT.md');
+    } catch (error) {
+        console.error('❌ Failed to create .env.local:', error.message);
+    }
 
-    rl.close()
+    rl.close();
 }
 
-setupEnvironment().catch(console.error)
+setupEnvironment().catch(console.error);
