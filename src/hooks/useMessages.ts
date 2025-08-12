@@ -117,6 +117,8 @@ export function useMessages(chatId: string | null): UseMessagesResult {
         UPDATE_CHAT_TIMESTAMP
     );
 
+    const [sendMessageWithAIMutation] = useMutation(SEND_MESSAGE_WITH_AI);
+
     // Determine which data to use (subscription takes precedence)
     const baseMessages = subscriptionData?.messages || queryData?.messages || [];
     const optimisticMessages = Array.from(optimisticMessagesRef.current.values());
@@ -169,6 +171,21 @@ export function useMessages(chatId: string | null): UseMessagesResult {
         }
     }, [chatId, sendMessageMutation, updateChatTimestampMutation]);
 
+    const sendMessageWithAI = useCallback(async (content: string): Promise<boolean> => {
+        if (!chatId) return false;
+
+        try {
+            const result = await sendMessageWithAIMutation({
+                variables: { chatId, message: content },
+            });
+
+            return result.data?.sendMessage?.success || false;
+        } catch (error) {
+            console.error('Failed to send message to AI:', error);
+            return false;
+        }
+    }, [chatId, sendMessageWithAIMutation]);
+
     const sendMessageOptimistic = useCallback((content: string, isBot: boolean = false): string => {
         if (!chatId) return '';
 
@@ -203,6 +220,7 @@ export function useMessages(chatId: string | null): UseMessagesResult {
 
         // Actions
         sendMessage,
+        sendMessageWithAI,
         sendMessageOptimistic,
         refetch,
 
