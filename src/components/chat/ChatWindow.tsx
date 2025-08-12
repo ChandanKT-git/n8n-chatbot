@@ -10,7 +10,7 @@ interface ChatWindowProps {
 export function ChatWindow({ chatId }: ChatWindowProps) {
     const [message, setMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { messages, loading, sending, sendMessage, sendMessageWithAI, subscriptionState } = useMessages(chatId);
+    const { messages, loading, sending, sendMessage, sendMessageWithAI, subscriptionState, refetch } = useMessages(chatId);
 
     // Debug subscription and messages
     console.log('Subscription state:', subscriptionState);
@@ -40,6 +40,16 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
             console.log('Sending to AI...');
             const aiSuccess = await sendMessageWithAI(userMessage);
             console.log('AI message sent successfully:', aiSuccess);
+
+            if (aiSuccess) {
+                // Force refetch messages to get the AI response
+                console.log('Refetching messages to get AI response...');
+                setTimeout(async () => {
+                    // Small delay to ensure AI message is saved
+                    await refetch();
+                    console.log('Messages refetched!');
+                }, 2000);
+            }
         } else {
             console.error('Failed to send user message, not sending to AI');
         }

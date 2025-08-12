@@ -187,6 +187,7 @@ export function useMessages(chatId: string | null): UseMessagesResult {
             });
 
             console.log('AI response result:', result);
+            console.log('AI response data:', result.data);
 
             if (result.errors) {
                 console.error('GraphQL errors:', result.errors);
@@ -195,6 +196,7 @@ export function useMessages(chatId: string | null): UseMessagesResult {
 
             const success = result.data?.sendMessage?.success || false;
             console.log('AI message success:', success);
+            console.log('Full AI response:', result.data?.sendMessage);
 
             return success;
         } catch (error) {
