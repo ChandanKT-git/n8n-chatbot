@@ -10,7 +10,12 @@ interface ChatWindowProps {
 export function ChatWindow({ chatId }: ChatWindowProps) {
     const [message, setMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const { messages, loading, sending, sendMessage, sendMessageWithAI } = useMessages(chatId);
+    const { messages, loading, sending, sendMessage, sendMessageWithAI, subscriptionState } = useMessages(chatId);
+
+    // Debug subscription and messages
+    console.log('Subscription state:', subscriptionState);
+    console.log('Messages count:', messages.length);
+    console.log('All messages:', messages);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
