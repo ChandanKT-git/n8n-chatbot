@@ -117,7 +117,9 @@ export function useMessages(chatId: string | null): UseMessagesResult {
         UPDATE_CHAT_TIMESTAMP
     );
 
-    const [sendMessageWithAIMutation] = useMutation(SEND_MESSAGE_WITH_AI);
+    const [sendMessageWithAIMutation] = useMutation(SEND_MESSAGE_WITH_AI, {
+        errorPolicy: 'all',
+    });
 
     // Determine which data to use (subscription takes precedence)
     const baseMessages = subscriptionData?.messages || queryData?.messages || [];
@@ -172,14 +174,29 @@ export function useMessages(chatId: string | null): UseMessagesResult {
     }, [chatId, sendMessageMutation, updateChatTimestampMutation]);
 
     const sendMessageWithAI = useCallback(async (content: string): Promise<boolean> => {
-        if (!chatId) return false;
+        if (!chatId) {
+            console.error('No chatId provided for AI message');
+            return false;
+        }
+
+        console.log('Sending message to AI:', { chatId, content });
 
         try {
             const result = await sendMessageWithAIMutation({
                 variables: { chatId, message: content },
             });
 
-            return result.data?.sendMessage?.success || false;
+            console.log('AI response result:', result);
+
+            if (result.errors) {
+                console.error('GraphQL errors:', result.errors);
+                return false;
+            }
+
+            const success = result.data?.sendMessage?.success || false;
+            console.log('AI message success:', success);
+
+            return success;
         } catch (error) {
             console.error('Failed to send message to AI:', error);
             return false;

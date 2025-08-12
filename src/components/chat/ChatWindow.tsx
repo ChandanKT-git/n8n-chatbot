@@ -24,12 +24,19 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
         const userMessage = message.trim();
         setMessage('');
 
+        console.log('Sending user message:', userMessage);
+
         // Send user message first
         const success = await sendMessage(userMessage, false);
+        console.log('User message sent successfully:', success);
 
         if (success) {
             // Then send to AI for response
-            await sendMessageWithAI(userMessage);
+            console.log('Sending to AI...');
+            const aiSuccess = await sendMessageWithAI(userMessage);
+            console.log('AI message sent successfully:', aiSuccess);
+        } else {
+            console.error('Failed to send user message, not sending to AI');
         }
     };
 
@@ -71,8 +78,8 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
                             )}
 
                             <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.is_bot
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'bg-blue-600 text-white'
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'bg-blue-600 text-white'
                                 }`}>
                                 <p className="text-sm">{msg.content}</p>
                                 <p className={`text-xs mt-1 ${msg.is_bot ? 'text-gray-500' : 'text-blue-100'
