@@ -108,6 +108,16 @@ export const UPDATE_CHAT_TIMESTAMP = gql`
   }
 `;
 
+export const SEND_MESSAGE_WITH_AI = gql`
+  mutation SendMessageWithAI($chatId: uuid!, $message: String!) {
+    sendMessage(chatId: $chatId, message: $message) {
+      success
+      message
+      timestamp
+    }
+  }
+`;
+
 // ============================================================================
 // SUBSCRIPTIONS
 // ============================================================================

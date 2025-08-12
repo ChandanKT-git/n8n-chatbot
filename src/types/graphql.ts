@@ -132,3 +132,20 @@ export interface SubscribeToChatMessagesVariables {
 export interface SubscribeToNewMessagesVariables {
     chatId: string;
 }
+// 
+============================================================================
+// AI ACTION TYPES
+// ============================================================================
+
+export interface SendMessageWithAIResponse {
+  sendMessage: {
+    success: boolean;
+    message: string;
+    timestamp: string;
+  };
+}
+
+export interface SendMessageWithAIVariables {
+  chatId: string;
+  message: string;
+}

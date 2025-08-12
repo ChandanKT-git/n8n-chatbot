@@ -9,6 +9,7 @@ import {
 import {
     GET_CHAT_MESSAGES,
     SEND_MESSAGE,
+    SEND_MESSAGE_WITH_AI,
     SUBSCRIBE_TO_CHAT_MESSAGES,
     UPDATE_CHAT_TIMESTAMP
 } from '../lib/graphql';
@@ -37,6 +38,7 @@ export interface UseMessagesResult {
 
     // Actions
     sendMessage: (content: string, isBot?: boolean) => Promise<boolean>;
+    sendMessageWithAI: (content: string) => Promise<boolean>;
     sendMessageOptimistic: (content: string, isBot?: boolean) => string;
     refetch: () => Promise<any>;
 
