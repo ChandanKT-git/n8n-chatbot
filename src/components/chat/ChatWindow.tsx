@@ -42,13 +42,17 @@ export function ChatWindow({ chatId }: ChatWindowProps) {
             console.log('AI message sent successfully:', aiSuccess);
 
             if (aiSuccess) {
+                // The AI Action should return the actual AI message
+                // Let's check what the AI response contains
+                console.log('AI call successful, checking for AI message in response...');
+
                 // Force refetch messages to get the AI response
                 console.log('Refetching messages to get AI response...');
                 setTimeout(async () => {
                     // Small delay to ensure AI message is saved
                     await refetch();
                     console.log('Messages refetched!');
-                }, 2000);
+                }, 3000); // Increased delay to 3 seconds
             }
         } else {
             console.error('Failed to send user message, not sending to AI');

@@ -199,6 +199,10 @@ export function useMessages(chatId: string | null): UseMessagesResult {
             console.log('AI message success:', success);
             console.log('Full AI response:', result.data?.sendMessage);
 
+            // The AI response is being saved to database by n8n workflow
+            // For now, we'll rely on the refetch to show the AI response
+            console.log('AI processing completed, response will appear after refetch');
+
             return success;
         } catch (error) {
             console.error('Failed to send message to AI:', error);
