@@ -1,4 +1,4 @@
-# Chatbot App
+# Chatbot App  
 
 A modern, full-stack chatbot application built with React, TypeScript, Nhost, and Hasura GraphQL.
 
